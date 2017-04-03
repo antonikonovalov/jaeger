@@ -29,11 +29,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger/thrift-gen/jaeger"
-	"github.com/uber/jaeger/thrift-gen/zipkincore"
-	"gopkg.in/yaml.v2"
+	"github.com/uber/tchannel-go"
 
 	"github.com/uber/jaeger/pkg/discovery"
+	"github.com/uber/jaeger/thrift-gen/jaeger"
+	"github.com/uber/jaeger/thrift-gen/zipkincore"
+
+	"gopkg.in/yaml.v2"
 )
 
 func TestConfigFile(t *testing.T) {
@@ -90,6 +92,15 @@ func TestConfigWithDiscovery(t *testing.T) {
 	cfg = &Builder{}
 	notifier := &discovery.Dispatcher{}
 	cfg.WithDiscoverer(discoverer).WithDiscoveryNotifier(notifier)
+	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.New(zap.NullEncoder()))
+	assert.NoError(t, err)
+	assert.NotNil(t, agent)
+}
+
+func TestConfigWithChannel(t *testing.T) {
+	cfg := &Builder{}
+	channel, _ := tchannel.NewChannel(agentServiceName, nil)
+	cfg.WithChannel(channel)
 	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.New(zap.NullEncoder()))
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
