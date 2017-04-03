@@ -86,6 +86,7 @@ type Builder struct {
 
 	discoverer     discovery.Discoverer
 	notifier       discovery.Notifier
+	channel        *tchannel.Channel
 	otherReporters []reporter.Reporter
 }
 
@@ -168,6 +169,12 @@ func (b *Builder) WithDiscoveryNotifier(n discovery.Notifier) *Builder {
 	return b
 }
 
+// WithChannel sets tchannel channel
+func (b *Builder) WithChannel(c *tchannel.Channel) *Builder {
+	b.channel = c
+	return b
+}
+
 func (b *Builder) enableDiscovery(channel *tchannel.Channel, logger zap.Logger) (interface{}, error) {
 	if b.discoverer == nil && b.notifier == nil {
 		return nil, nil
@@ -187,10 +194,12 @@ func (b *Builder) enableDiscovery(channel *tchannel.Channel, logger zap.Logger) 
 
 // CreateAgent creates the Agent
 func (b *Builder) CreateAgent(mFactory metrics.Factory, logger zap.Logger) (*Agent, error) {
-	// ignore errors since it only happens on empty service name
-	channel, _ := tchannel.NewChannel(agentServiceName, nil)
+	if b.channel == nil {
+		// ignore errors since it only happens on empty service name
+		b.channel, _ = tchannel.NewChannel(agentServiceName, nil)
+	}
 
-	discoveryMgr, err := b.enableDiscovery(channel, logger)
+	discoveryMgr, err := b.enableDiscovery(b.channel, logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot enable service discovery")
 	}
@@ -198,7 +207,7 @@ func (b *Builder) CreateAgent(mFactory metrics.Factory, logger zap.Logger) (*Age
 	if discoveryMgr == nil && b.CollectorHostPort != "" {
 		clientOpts = &tchannelThrift.ClientOptions{HostPort: b.CollectorHostPort}
 	}
-	rep := reporter.NewTCollectorReporter(channel, mFactory, logger, clientOpts)
+	rep := reporter.NewTCollectorReporter(b.channel, mFactory, logger, clientOpts)
 	if b.otherReporters != nil {
 		reps := append([]reporter.Reporter{}, b.otherReporters...)
 		reps = append(reps, rep)
@@ -208,7 +217,7 @@ func (b *Builder) CreateAgent(mFactory metrics.Factory, logger zap.Logger) (*Age
 	if err != nil {
 		return nil, err
 	}
-	samplingServer := b.SamplingServer.GetSamplingServer(channel, mFactory, clientOpts)
+	samplingServer := b.SamplingServer.GetSamplingServer(b.channel, mFactory, clientOpts)
 	return NewAgent(processors, samplingServer, discoveryMgr, logger), nil
 }
 
